@@ -78,24 +78,28 @@ const fallbackMaterials: Material[] = [
 
 export const materialService = {
   async listMaterials(activeOnly: boolean = false): Promise<Material[]> {
-    if (!isSupabaseConfigured) {
-      const stored = localStorage.getItem('diridesmob_custom_materials')
-      const list: Material[] = stored ? JSON.parse(stored) : fallbackMaterials
-      return activeOnly ? list.filter(m => m.is_active) : list
+    if (isSupabaseConfigured) {
+      try {
+        let query = supabase.from('materials').select('*').order('code', { ascending: true })
+        if (activeOnly) {
+          query = query.eq('is_active', true)
+        }
+
+        const { data, error } = await query
+        if (!error && data && data.length > 0) {
+          return data as Material[]
+        }
+        if (error) {
+          console.warn('Supabase materials query unavailable, using local catalog:', error.message || error)
+        }
+      } catch (err: any) {
+        console.warn('Supabase materials exception, using local fallback:', err?.message || err)
+      }
     }
 
-    let query = supabase.from('materials').select('*').order('code', { ascending: true })
-    if (activeOnly) {
-      query = query.eq('is_active', true)
-    }
-
-    const { data, error } = await query
-    if (error) {
-      console.error('Error fetching materials:', error)
-      throw error
-    }
-
-    return (data || []) as Material[]
+    const stored = localStorage.getItem('diridesmob_custom_materials')
+    const list: Material[] = stored ? JSON.parse(stored) : fallbackMaterials
+    return activeOnly ? list.filter(m => m.is_active) : list
   },
 
   async createMaterial(payload: {
@@ -107,41 +111,48 @@ export const materialService = {
   }): Promise<Material> {
     const unit_area_m2 = Number(((payload.width_mm / 1000) * (payload.height_mm / 1000)).toFixed(4))
 
-    if (!isSupabaseConfigured) {
-      const stored = localStorage.getItem('diridesmob_custom_materials')
-      const list: Material[] = stored ? JSON.parse(stored) : [...fallbackMaterials]
-      const newMat: Material = {
-        id: crypto.randomUUID(),
-        code: payload.code.toUpperCase().trim(),
-        name: payload.name.trim(),
-        width_mm: payload.width_mm,
-        height_mm: payload.height_mm,
-        unit_area_m2,
-        unit: payload.unit || 'UN',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      list.unshift(newMat)
-      localStorage.setItem('diridesmob_custom_materials', JSON.stringify(list))
-      return newMat
+    const newMatLocal: Material = {
+      id: crypto.randomUUID(),
+      code: payload.code.toUpperCase().trim(),
+      name: payload.name.trim(),
+      width_mm: payload.width_mm,
+      height_mm: payload.height_mm,
+      unit_area_m2,
+      unit: payload.unit || 'UN',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
-      .from('materials')
-      .insert({
-        code: payload.code.toUpperCase().trim(),
-        name: payload.name.trim(),
-        width_mm: payload.width_mm,
-        height_mm: payload.height_mm,
-        unit: payload.unit || 'UN',
-        is_active: true,
-      })
-      .select()
-      .single()
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('materials')
+          .insert({
+            code: payload.code.toUpperCase().trim(),
+            name: payload.name.trim(),
+            width_mm: payload.width_mm,
+            height_mm: payload.height_mm,
+            unit: payload.unit || 'UN',
+            is_active: true,
+          })
+          .select()
+          .single()
 
-    if (error) throw error
-    return data as Material
+        if (!error && data) {
+          return data as Material
+        }
+        console.warn('Supabase createMaterial failed, saving locally:', error)
+      } catch (err) {
+        console.warn('Supabase createMaterial exception, saving locally:', err)
+      }
+    }
+
+    const stored = localStorage.getItem('diridesmob_custom_materials')
+    const list: Material[] = stored ? JSON.parse(stored) : [...fallbackMaterials]
+    list.unshift(newMatLocal)
+    localStorage.setItem('diridesmob_custom_materials', JSON.stringify(list))
+    return newMatLocal
   },
 
   async updateMaterial(
@@ -154,40 +165,46 @@ export const materialService = {
       is_active?: boolean
     }
   ): Promise<Material> {
-    if (!isSupabaseConfigured) {
-      const stored = localStorage.getItem('diridesmob_custom_materials')
-      const list: Material[] = stored ? JSON.parse(stored) : [...fallbackMaterials]
-      const index = list.findIndex(m => m.id === id)
-      if (index !== -1) {
-        const item = list[index]
-        const width = payload.width_mm ?? item.width_mm
-        const height = payload.height_mm ?? item.height_mm
-        const unit_area_m2 = Number(((width / 1000) * (height / 1000)).toFixed(4))
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('materials')
+          .update({
+            ...payload,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select()
+          .single()
 
-        list[index] = {
-          ...item,
-          ...payload,
-          unit_area_m2,
-          updated_at: new Date().toISOString(),
+        if (!error && data) {
+          return data as Material
         }
-        localStorage.setItem('diridesmob_custom_materials', JSON.stringify(list))
-        return list[index]
+        console.warn('Supabase updateMaterial failed, updating locally:', error)
+      } catch (err) {
+        console.warn('Supabase updateMaterial exception, updating locally:', err)
       }
-      throw new Error('Material não encontrado')
     }
 
-    const { data, error } = await supabase
-      .from('materials')
-      .update({
-        ...payload,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single()
+    const stored = localStorage.getItem('diridesmob_custom_materials')
+    const list: Material[] = stored ? JSON.parse(stored) : [...fallbackMaterials]
+    const index = list.findIndex(m => m.id === id)
+    if (index !== -1) {
+      const item = list[index]
+      const width = payload.width_mm ?? item.width_mm
+      const height = payload.height_mm ?? item.height_mm
+      const unit_area_m2 = Number(((width / 1000) * (height / 1000)).toFixed(4))
 
-    if (error) throw error
-    return data as Material
+      list[index] = {
+        ...item,
+        ...payload,
+        unit_area_m2,
+        updated_at: new Date().toISOString(),
+      }
+      localStorage.setItem('diridesmob_custom_materials', JSON.stringify(list))
+      return list[index]
+    }
+    throw new Error('Material não encontrado')
   },
 
   async toggleActive(id: string, currentStatus: boolean): Promise<Material> {

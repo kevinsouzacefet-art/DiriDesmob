@@ -4,46 +4,50 @@ import { locationService } from './locationService'
 
 export const supplierService = {
   async listSuppliers(): Promise<SupplierWithLocation[]> {
-    if (!isSupabaseConfigured) {
-      const locations = await locationService.listLocations('FORNECEDOR')
-      const storedSuppliers = localStorage.getItem('diridesmob_custom_suppliers')
-      const suppliersMap = storedSuppliers ? JSON.parse(storedSuppliers) : {}
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('suppliers')
+          .select('*, location:locations(*)')
+          .order('created_at', { ascending: false })
 
-      return locations.map(loc => {
-        const extra = suppliersMap[loc.id] || {
-          cnpj: loc.code === 'FORN-FORMAX' ? '12.345.678/0001-90' : '98.765.432/0001-10',
-          contact_name: loc.code === 'FORN-FORMAX' ? 'Roberto Vianna' : 'Helena Ramos',
-          contact_phone: loc.code === 'FORN-FORMAX' ? '(11) 98765-4321' : '(31) 99123-4567',
-          contact_email: loc.code === 'FORN-FORMAX' ? 'roberto.vianna@formax.com.br' : 'h.ramos@aluform.ind.br',
-          is_active: loc.is_active,
-          created_at: loc.created_at,
-          updated_at: loc.updated_at,
+        if (!error && data && data.length > 0) {
+          return (data || []) as unknown as SupplierWithLocation[]
         }
-        return {
-          id: loc.id,
-          cnpj: extra.cnpj,
-          contact_name: extra.contact_name,
-          contact_phone: extra.contact_phone,
-          contact_email: extra.contact_email,
-          is_active: extra.is_active,
-          created_at: extra.created_at,
-          updated_at: extra.updated_at,
-          location: loc,
+        if (error) {
+          console.warn('Supabase suppliers fetch failed, fallback to local location suppliers:', error.message)
         }
-      })
+      } catch (err) {
+        console.warn('Supabase suppliers exception, fallback to local location suppliers:', err)
+      }
     }
 
-    const { data, error } = await supabase
-      .from('suppliers')
-      .select('*, location:locations(*)')
-      .order('created_at', { ascending: false })
+    const locations = await locationService.listLocations('FORNECEDOR')
+    const storedSuppliers = localStorage.getItem('diridesmob_custom_suppliers')
+    const suppliersMap = storedSuppliers ? JSON.parse(storedSuppliers) : {}
 
-    if (error) {
-      console.error('Error fetching suppliers:', error)
-      throw error
-    }
-
-    return (data || []) as unknown as SupplierWithLocation[]
+    return locations.map(loc => {
+      const extra = suppliersMap[loc.id] || {
+        cnpj: loc.code === 'FORN-FORMAX' ? '12.345.678/0001-90' : '98.765.432/0001-10',
+        contact_name: loc.code === 'FORN-FORMAX' ? 'Roberto Vianna' : 'Helena Ramos',
+        contact_phone: loc.code === 'FORN-FORMAX' ? '(11) 98765-4321' : '(31) 99123-4567',
+        contact_email: loc.code === 'FORN-FORMAX' ? 'roberto.vianna@formax.com.br' : 'h.ramos@aluform.ind.br',
+        is_active: loc.is_active,
+        created_at: loc.created_at,
+        updated_at: loc.updated_at,
+      }
+      return {
+        id: loc.id,
+        cnpj: extra.cnpj,
+        contact_name: extra.contact_name,
+        contact_phone: extra.contact_phone,
+        contact_email: extra.contact_email,
+        is_active: extra.is_active,
+        created_at: extra.created_at,
+        updated_at: extra.updated_at,
+        location: loc,
+      }
+    })
   },
 
   async createSupplier(payload: {

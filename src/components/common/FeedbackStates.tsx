@@ -7,7 +7,7 @@ export const EmptyState: React.FC<{
   description?: string
   actionLabel?: string
   onAction?: () => void
-  icon?: React.ReactNode
+  icon?: React.ReactNode | React.ComponentType<any>
   className?: string
 }> = ({
   title = 'Nenhum registro encontrado',
@@ -17,6 +17,19 @@ export const EmptyState: React.FC<{
   icon,
   className,
 }) => {
+  const renderIcon = () => {
+    if (!icon) return <Inbox className="w-6 h-6" />
+    if (React.isValidElement(icon)) return icon
+    if (
+      typeof icon === 'function' ||
+      (typeof icon === 'object' && icon !== null && ('$$typeof' in icon || 'render' in icon))
+    ) {
+      const IconComponent = icon as React.ComponentType<{ className?: string }>
+      return <IconComponent className="w-6 h-6" />
+    }
+    return icon as React.ReactNode
+  }
+
   return (
     <div
       className={cn(
@@ -25,7 +38,7 @@ export const EmptyState: React.FC<{
       )}
     >
       <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 dark:text-zinc-500 mb-3">
-        {icon || <Inbox className="w-6 h-6" />}
+        {renderIcon()}
       </div>
       <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">{description}</p>

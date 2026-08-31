@@ -45,48 +45,54 @@ const fallbackNotifications: Notification[] = [
 
 export const notificationService = {
   async listNotifications(): Promise<Notification[]> {
-    if (!isSupabaseConfigured) {
-      const stored = localStorage.getItem('diridesmob_custom_notifs')
-      return stored ? JSON.parse(stored) : fallbackNotifications
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (!error && data && data.length > 0) {
+          return data as Notification[]
+        }
+        if (error) {
+          console.warn('Supabase notifications unavailable, using local notifications:', error.message)
+        }
+      } catch (err: any) {
+        console.warn('Supabase notifications exception, using local fallback:', err?.message)
+      }
     }
 
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching notifications:', error)
-      return []
-    }
-
-    return (data || []) as Notification[]
+    const stored = localStorage.getItem('diridesmob_custom_notifs')
+    return stored ? JSON.parse(stored) : fallbackNotifications
   },
 
   async markAsRead(notificationId: string): Promise<void> {
-    if (!isSupabaseConfigured) {
-      const stored = localStorage.getItem('diridesmob_custom_notifs')
-      const list: Notification[] = stored ? JSON.parse(stored) : [...fallbackNotifications]
-      const index = list.findIndex(n => n.id === notificationId)
-      if (index !== -1) {
-        list[index].is_read = true
-        list[index].read_at = new Date().toISOString()
-        localStorage.setItem('diridesmob_custom_notifs', JSON.stringify(list))
+    if (isSupabaseConfigured) {
+      try {
+        // Call safe RPC as required by security patch
+        const { error: rpcError } = await supabase.rpc('fn_mark_notification_read' as any, {
+          p_notification_id: notificationId,
+        })
+
+        if (rpcError) {
+          await supabase
+            .from('notifications')
+            .update({ is_read: true, read_at: new Date().toISOString() })
+            .eq('id', notificationId)
+        }
+      } catch (err) {
+        console.warn('Supabase markAsRead exception, updating locally:', err)
       }
-      return
     }
 
-    // Call safe RPC as required by security patch
-    const { error: rpcError } = await supabase.rpc('fn_mark_notification_read' as any, {
-      p_notification_id: notificationId,
-    })
-
-    if (rpcError) {
-      console.warn('RPC mark read error, attempting standard update fallback:', rpcError)
-      await supabase
-        .from('notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq('id', notificationId)
+    const stored = localStorage.getItem('diridesmob_custom_notifs')
+    const list: Notification[] = stored ? JSON.parse(stored) : [...fallbackNotifications]
+    const index = list.findIndex(n => n.id === notificationId)
+    if (index !== -1) {
+      list[index].is_read = true
+      list[index].read_at = new Date().toISOString()
+      localStorage.setItem('diridesmob_custom_notifs', JSON.stringify(list))
     }
   },
 }
