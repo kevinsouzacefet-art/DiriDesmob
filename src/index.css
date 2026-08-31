@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @media print {
+    /* Hide navigation, sidebars, action buttons, modals */
+    aside,
+    nav,
+    header button,
+    .no-print,
+    button:not(.print-include),
+    .app-sidebar,
+    .app-header-actions {
+      display: none !important;
+    }
+
+    body, #root, main {
+      background: #ffffff !important;
+      color: #000000 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    .print-only {
+      display: block !important;
+    }
+
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      page-break-inside: auto;
+    }
+
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    .shadow-sm, .shadow-md, .shadow-lg, .shadow-xs {
+      box-shadow: none !important;
+      border-color: #cbd5e1 !important;
+    }
+  }
+}
+

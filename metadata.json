@@ -1,0 +1,6 @@
+{
+  "name": "DiriDesmob",
+  "description": "Sistema corporativo de gestão de desmobilização, movimentação, estoque e conferência de fôrmas industriais para obras, galpões e fornecedores.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
